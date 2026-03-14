@@ -1,4 +1,0 @@
-repository "Minesweeper 2026-03-13_20-59-13/Minesweeper@1375901933794@cloud"
-  path "/"
-    br "/main"
-    co "/main"
