@@ -42,7 +42,7 @@ public class GameManager : MonoBehaviour
     public int width = 10;
     public int height = 10;
 
-    private int NumberOfMines => height * width / 4;
+    private int NumberOfMines => height * width / 6;
     private List<Tile> _mineList = new List<Tile>();
 
 
