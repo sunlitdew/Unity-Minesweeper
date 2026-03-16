@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using TMPro;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using Random = System.Random;
 
@@ -29,24 +31,55 @@ public class GameManager : MonoBehaviour
 
     public GameObject board;
     public GameObject tileSpace;
+    public TextMeshProUGUI minesLeftTextbox;
+    
     public Image tism;
 
     public Sprite happyTism;
     public Sprite sadTism;
 
     public static GameManager Instance;
+    public EventSystem eventSystem;
 
     private List<List<Tile>> _gameMap;
     private bool _isGenerated = false;
     private bool _isActive = true;
+
+    public int settingsHeight = 10;
+    public int settingsWidth = 10;
     public int width = 10;
     public int height = 10;
 
     private int NumberOfMines => height * width / 6;
     private List<Tile> _mineList = new List<Tile>();
 
+    public Canvas settingsCanvas;
+    public Slider heightSlider;
+        
+    private bool _settingsOpen = false;
+    public bool SettingsOpen
+    {
+        get => _settingsOpen;
+        set
+        {
+            _settingsOpen = value;
+            settingsCanvas.enabled = value;
+            EventSystem.current.SetSelectedGameObject(value ? heightSlider.gameObject : null);
+        } 
+    }
 
-    public int MinesLeft { get; private set; }
+
+    public int MinesLeft
+    {
+        get => _minesLeft;
+        private set
+        {
+            _minesLeft = value;
+            minesLeftTextbox.text = "Mines Left: " + value;
+        }
+    }
+
+    private int _minesLeft;
 
     private int _emptyLeft;
 
@@ -64,6 +97,8 @@ public class GameManager : MonoBehaviour
     {
         _isGenerated = false;
         _isActive = true;
+        height = settingsHeight;
+        width = settingsWidth;
         tism.sprite = happyTism;
         MinesLeft = NumberOfMines;
         _mineList = new List<Tile>();
@@ -71,7 +106,7 @@ public class GameManager : MonoBehaviour
         while (tileSpace.transform.childCount > 0)
         {
             var child = tileSpace.transform.GetChild(0);
-            child.parent = null;
+            child.SetParent(null);
             Destroy(child.gameObject);
         }
 
@@ -98,21 +133,44 @@ public class GameManager : MonoBehaviour
                 _gameMap[i].Add(script);
             }
         }
+
+        SetExplicitNavigation();
+    }
+    
+    private void SetExplicitNavigation()
+    {
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                Button btn = _gameMap[x][y].button;
+                Navigation nav = new Navigation { mode = Navigation.Mode.Explicit };
+
+                // Link neighbors with boundary checks
+                if (y > 0) nav.selectOnUp = _gameMap[x][y - 1].button;
+                if (y < height - 1) nav.selectOnDown = _gameMap[x][y + 1].button;
+                if (x > 0) nav.selectOnLeft = _gameMap[x - 1][y].button;
+                if (x < width - 1) nav.selectOnRight = _gameMap[x + 1][y].button;
+
+                // Apply the locked navigation to the button
+                btn.navigation = nav;
+            }
+        }
     }
 
-    public void Reveal(int startX, int startY)
+    public void Reveal(Tile startTile)
     {
         if (!_isActive) return;
 
         if (!_isGenerated)
         {
             _isGenerated = true;
-            GenerateGame(startX, startY);
+            GenerateGame(startTile.x,startTile.y);
         }
 
         var firstIter = true;
         var revealQueue = new Queue<Tile>();
-        revealQueue.Enqueue(_gameMap[startX][startY]);
+        revealQueue.Enqueue(startTile);
 
         while (revealQueue.Count > 0)
         {
@@ -123,7 +181,7 @@ public class GameManager : MonoBehaviour
                 {
                     if (targetTile.IsEmpty) continue;
                     var neighbors = new List<Tile>();
-                    var foundflags = 0;
+                    var foundFlags = 0;
                     for (var i = targetTile.x - 1; i <= targetTile.x + 1; i++)
                     {
                         for (var j = targetTile.y - 1; j <= targetTile.y + 1; j++)
@@ -132,7 +190,7 @@ public class GameManager : MonoBehaviour
                             var neighbor = _gameMap[i][j];
                             if (neighbor.isFlagged)
                             {
-                                foundflags++;
+                                foundFlags++;
                             }
                             else if (!neighbor.isRevealed)
                             {
@@ -141,13 +199,15 @@ public class GameManager : MonoBehaviour
                         }
                     }
 
-                    if (foundflags == targetTile.logicValue)
+                    if (foundFlags == targetTile.logicValue)
                     {
                         foreach (var tile in neighbors)
                         {
                             revealQueue.Enqueue(tile);
                         }
                     }
+
+                    continue;
                 }
                 else
                 {
@@ -160,7 +220,7 @@ public class GameManager : MonoBehaviour
                 GameOver(targetTile);
                 return;
             }
-            if (targetTile.isFlagged) ToggleFlag(targetTile.x, targetTile.y);
+            if (targetTile.isFlagged) ToggleFlag(targetTile);
             targetTile.Reveal();
             if (!targetTile.IsEmpty) continue;
             for (var i = targetTile.x - 1; i <= targetTile.x + 1; i++)
@@ -184,9 +244,8 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    public void ToggleFlag(int x, int y)
+    public void ToggleFlag(Tile targetTile)
     {
-        var targetTile =  _gameMap[x][y];
         if (!_isActive || targetTile.isRevealed) return;
         if (targetTile.isFlagged)
         {
@@ -248,14 +307,71 @@ public class GameManager : MonoBehaviour
         tism.sprite = sadTism;
         foreach (var tile in _mineList)
         {
-            tile.Reveal();
+            tile.background.color = Color.red;
+            Color tempColor = tile.cover.color;
+            tempColor.a = 0.5f;
+            tile.cover.color = tempColor;
+            if (tile.isFlagged)
+            {
+                tile.content.enabled = false;
+            }
         }
-        causeTile.background.color = Color.red;
-        causeTile.background.sprite = null;
     }
 
     private void Victory()
     {
-        
+        MinesLeft = 0;
+        _isActive = false;
+        foreach (var tile in _mineList)
+        {
+            tile.flag.enabled = false;
+            tile.background.color = Color.green;
+            Color tempColor = tile.cover.color;
+            tempColor.a = 0.2f;
+            tile.cover.color = tempColor;
+        }
+    }
+    
+    public void OnNavigateInput(InputAction.CallbackContext context)
+    {
+        if (!context.started) return;
+        if (EventSystem.current.currentSelectedGameObject == null)
+        {
+            if (_gameMap != null && _gameMap.Count > 0)
+            {
+                GameObject startTile = _gameMap[0][0].gameObject;
+                EventSystem.current.SetSelectedGameObject(startTile);
+            }
+        }
+    }
+    
+    
+    public void OnRevealInput(InputAction.CallbackContext context)
+    {
+        if (!context.performed) return;
+        var selected = EventSystem.current.currentSelectedGameObject;
+
+        if (selected != null && selected.TryGetComponent(out Tile targetTile))
+        {
+            Debug.Log("Reveal tile x=" + targetTile.x + " y=" + targetTile.y);
+            Reveal(targetTile);
+        }
+    }
+
+    public void OnFlagInput(InputAction.CallbackContext context)
+    {
+        if (!context.performed) return;
+        var selected = EventSystem.current.currentSelectedGameObject;
+
+        if (selected != null && selected.TryGetComponent(out Tile targetTile))
+        {
+            Debug.Log("Flag tile x=" + targetTile.x + " y=" + targetTile.y);
+            ToggleFlag(targetTile);
+        }
+    }
+
+    public void OnToggleSettingsInput(InputAction.CallbackContext context)
+    {
+        SettingsOpen = !SettingsOpen;
     }
 }

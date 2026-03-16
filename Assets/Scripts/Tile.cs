@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-public class Tile : MonoBehaviour, IPointerClickHandler
+public class Tile : MonoBehaviour, ISelectHandler, IDeselectHandler, IPointerClickHandler
 {
     [Header("Coordinates")]
     public int x;
@@ -25,6 +25,12 @@ public class Tile : MonoBehaviour, IPointerClickHandler
     public Image cover;
     public Image flag;
     public Image background;
+    public Image selectBorder;
+
+    
+    public Button button;
+    public Canvas tileCanvas;
+    
     
     [Header("Sprites")]
     public Sprite[] numberSprites;
@@ -38,22 +44,21 @@ public class Tile : MonoBehaviour, IPointerClickHandler
         logicValue = 0;
     }
     
-    public void OnPointerClick(PointerEventData eventData)
-    {
-        switch (eventData.button)
-        {
-            case PointerEventData.InputButton.Left:
-                Debug.Log("Left click at " + x + "," + y);
-                GameManager.Instance.Reveal(x,y);
-                break;
-            case PointerEventData.InputButton.Right:
-                Debug.Log("Right Click at " + x + "," + y);
-                GameManager.Instance.ToggleFlag(x,y);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
-        }
-    }
+    // public void OnPointerClick(PointerEventData eventData)
+    // {
+    //     switch (eventData.button)
+    //     {
+    //         case PointerEventData.InputButton.Left:
+    //             Debug.Log("Left click at " + x + "," + y);
+    //             break;
+    //         case PointerEventData.InputButton.Right:
+    //             Debug.Log("Right Click at " + x + "," + y);
+    //             GameManager.Instance.ToggleFlag(this);
+    //             break;
+    //         default:
+    //             throw new ArgumentOutOfRangeException();
+    //     }
+    // }
 
     public void Reveal()
     {
@@ -78,6 +83,34 @@ public class Tile : MonoBehaviour, IPointerClickHandler
         {
             content.enabled = true;
             content.sprite = IsMine ? mine : numberSprites[logicValue - 1];
+        }
+    }
+
+    public void OnSelect(BaseEventData eventData)
+    {
+        Debug.Log("Selected x=" + x + " y=" + y);
+        if (eventData is AxisEventData)
+        {
+            tileCanvas.sortingOrder = 10;
+            selectBorder.enabled = true;
+        }
+    }
+
+    public void OnDeselect(BaseEventData eventData)
+    {
+        tileCanvas.sortingOrder = 5;
+        selectBorder.enabled = false;
+    }
+    
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (eventData.button == PointerEventData.InputButton.Left)
+        {
+            GameManager.Instance.Reveal(this);
+        }
+        else if (eventData.button == PointerEventData.InputButton.Right)
+        {
+            GameManager.Instance.ToggleFlag(this);
         }
     }
 }
