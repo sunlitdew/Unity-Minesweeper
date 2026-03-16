@@ -95,6 +95,7 @@ public class GameManager : MonoBehaviour
 
     public void Reset()
     {
+        EventSystem.current.SetSelectedGameObject(null);
         _isGenerated = false;
         _isActive = true;
         height = settingsHeight;
